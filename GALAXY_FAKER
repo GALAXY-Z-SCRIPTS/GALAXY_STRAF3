@@ -1,0 +1,858 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+
+local UI_NAME = "Galaxy_Faker_DynamicNebula_Resizable"
+for _, old in pairs(CoreGui:GetChildren()) do if old.Name == UI_NAME then old:Destroy() end end
+
+local lp = Players.LocalPlayer
+local connections = {}
+local CONFIG_FILE = "GalaxyFaker_ThemeConfig.json"
+
+-- // Configuration Registry State (Defaults)
+local ActiveTheme = {
+    Accent = Color3.fromRGB(235, 60, 255), 
+    Nebula1 = Color3.fromRGB(230, 20, 255),
+    Nebula2 = Color3.fromRGB(0, 210, 255)
+}
+local ToggleKey = Enum.KeyCode.Delete
+local TerminateKey = Enum.KeyCode.End
+local isListeningForKey = false
+local isListeningForTermKey = false
+
+-- Default initial fallback dimensions
+local SavedSize = UDim2.new(0, 560, 0, 390)
+local SavedPos = UDim2.new(0.5, -280, 0.5, -195)
+
+-- // PERSISTENT AUTO-SAVE PIPELINE
+local function autoSaveProfile()
+    local profileData = {
+        Accent = {ActiveTheme.Accent.R, ActiveTheme.Accent.G, ActiveTheme.Accent.B},
+        Nebula1 = {ActiveTheme.Nebula1.R, ActiveTheme.Nebula1.G, ActiveTheme.Nebula1.B},
+        Nebula2 = {ActiveTheme.Nebula2.R, ActiveTheme.Nebula2.G, ActiveTheme.Nebula2.B},
+        SavedKeybind = ToggleKey.Value,
+        SavedTerminateBind = TerminateKey.Value,
+        WindowSize = {SavedSize.X.Offset, SavedSize.Y.Offset},
+        WindowPos = {SavedPos.X.Scale, SavedPos.X.Offset, SavedPos.Y.Scale, SavedPos.Y.Offset}
+    }
+    if writefile then
+        pcall(function()
+            writefile(CONFIG_FILE, HttpService:JSONEncode(profileData))
+        end)
+    end
+end
+
+-- // Screen Container
+local gui = Instance.new("ScreenGui", CoreGui)
+gui.Name = UI_NAME
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true 
+
+-- // MASTER TRUE FULL-SCREEN OVERLAY FRAME
+local masterOverlay = Instance.new("Frame", gui)
+masterOverlay.Size = UDim2.new(1, 0, 1, 0)
+masterOverlay.Position = UDim2.new(0, 0, 0, 0)
+masterOverlay.BackgroundColor3 = Color3.fromRGB(15, 5, 25)
+masterOverlay.BorderSizePixel = 0
+masterOverlay.ZIndex = 100
+
+-- LAYER 1: Full-Screen Native Cosmic Canvas Base
+local imgLabel = Instance.new("ImageLabel", masterOverlay)
+imgLabel.Size = UDim2.new(1, 100, 1, 100)
+imgLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+imgLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+imgLabel.BackgroundTransparency = 1
+imgLabel.Image = "rbxassetid://14457317208"
+imgLabel.ImageColor3 = ActiveTheme.Nebula1
+imgLabel.ScaleType = Enum.ScaleType.Crop
+imgLabel.ZIndex = 101
+
+-- LAYER 2: Elevated Top UI Container
+local topUiLayer = Instance.new("Frame", masterOverlay)
+topUiLayer.Size = UDim2.new(1, 0, 1, 0)
+topUiLayer.BackgroundTransparency = 1
+topUiLayer.ZIndex = 500
+
+-- STAGE 1: Welcome Container
+local welcomeStageFrame = Instance.new("Frame", topUiLayer)
+welcomeStageFrame.Size = UDim2.new(1, 0, 1, 0)
+welcomeStageFrame.BackgroundTransparency = 1
+welcomeStageFrame.ZIndex = 501
+
+local welcomeText = Instance.new("TextLabel", welcomeStageFrame)
+welcomeText.Size = UDim2.new(1, 0, 1, 0)
+welcomeText.BackgroundTransparency = 1
+welcomeText.Text = "welcome :)"
+welcomeText.Font = Enum.Font.GothamBold
+welcomeText.TextSize = 72 
+welcomeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+welcomeText.ZIndex = 502
+
+local welcomeTxtGrad = Instance.new("UIGradient", welcomeText)
+welcomeTxtGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)), 
+    ColorSequenceKeypoint.new(0.4, Color3.fromRGB(255, 130, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 235, 255))
+})
+
+local textUIStroke = Instance.new("UIStroke", welcomeText)
+textUIStroke.Thickness = 5
+textUIStroke.Color = Color3.fromRGB(15, 5, 30)
+
+-- STAGE 2: Loading Container
+local loadingStageFrame = Instance.new("Frame", topUiLayer)
+loadingStageFrame.Size = UDim2.new(1, 0, 1, 0)
+loadingStageFrame.BackgroundTransparency = 1
+loadingStageFrame.Visible = false
+loadingStageFrame.ZIndex = 501
+
+local loadingText = Instance.new("TextLabel", loadingStageFrame)
+loadingText.Size = UDim2.new(1, 0, 0.4, 0)
+loadingText.Position = UDim2.new(0, 0, 0.20, 0)
+loadingText.BackgroundTransparency = 1
+loadingText.Text = "loading"
+loadingText.Font = Enum.Font.GothamBold
+loadingText.TextSize = 72
+loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadingText.ZIndex = 502
+
+local loadingTxtGrad = Instance.new("UIGradient", loadingText)
+loadingTxtGrad.Color = welcomeTxtGrad.Color
+
+local loadingUIStroke = Instance.new("UIStroke", loadingText)
+loadingUIStroke.Thickness = 5
+loadingUIStroke.Color = Color3.fromRGB(15, 5, 30)
+
+-- // SMOOTH LOADING SLIDER SYSTEM
+local sliderBackground = Instance.new("Frame", loadingStageFrame)
+sliderBackground.Size = UDim2.new(0, 320, 0, 8)
+sliderBackground.Position = UDim2.new(0.5, 0, 0.65, 0)
+sliderBackground.AnchorPoint = Vector2.new(0.5, 0.5)
+sliderBackground.BackgroundColor3 = Color3.fromRGB(25, 15, 40)
+sliderBackground.BorderSizePixel = 0
+sliderBackground.ZIndex = 503
+Instance.new("UICorner", sliderBackground).CornerRadius = UDim.new(1, 0)
+
+local sliderBgStroke = Instance.new("UIStroke", sliderBackground)
+sliderBgStroke.Color = Color3.fromRGB(45, 25, 65)
+sliderBgStroke.Thickness = 1.5
+
+local sliderFill = Instance.new("Frame", sliderBackground)
+sliderFill.Size = UDim2.new(0, 0, 1, 0) 
+sliderFill.BackgroundColor3 = ActiveTheme.Accent
+sliderFill.BorderSizePixel = 0
+sliderFill.ZIndex = 504
+Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1, 0)
+
+local sliderFillGradient = Instance.new("UIGradient", sliderFill)
+sliderFillGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, ActiveTheme.Accent),
+    ColorSequenceKeypoint.new(1, ActiveTheme.Nebula2)
+})
+
+-- // Main Window Box
+local main = Instance.new("Frame", gui)
+main.Size = SavedSize
+main.Position = SavedPos
+main.BackgroundColor3 = Color3.fromRGB(15, 5, 30)
+main.BorderSizePixel = 0
+main.ClipsDescendants = true
+main.Visible = false 
+
+local mainCorner = Instance.new("UICorner", main)
+mainCorner.CornerRadius = UDim.new(0, 14)
+
+local mainStroke = Instance.new("UIStroke", main)
+mainStroke.Thickness = 2.5
+mainStroke.Color = ActiveTheme.Accent
+
+local bgGradient = Instance.new("UIGradient", main)
+bgGradient.Rotation = 135
+bgGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 10, 65)),  
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(12, 4, 28)), 
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(4, 2, 12))     
+})
+
+-- // REAL-TIME SPINNING LIVELY NEBULA RAY BACKGROUND
+local spaceFrame = Instance.new("Frame", main)
+spaceFrame.Size = UDim2.new(1, 0, 1, 0)
+spaceFrame.BackgroundTransparency = 1
+spaceFrame.ZIndex = 1
+
+local rayContainer = Instance.new("Frame", spaceFrame)
+rayContainer.Size = UDim2.new(2, 0, 2, 0)
+rayContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+rayContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+rayContainer.BackgroundTransparency = 1
+rayContainer.ZIndex = 1
+
+local ray1 = Instance.new("Frame", rayContainer)
+ray1.Size = UDim2.new(1, 0, 1, 0)
+ray1.BackgroundTransparency = 0.65 
+ray1.BackgroundColor3 = ActiveTheme.Nebula1
+local rayGrad1 = Instance.new("UIGradient", ray1)
+rayGrad1.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 1),
+    NumberSequenceKeypoint.new(0.4, 0),
+    NumberSequenceKeypoint.new(0.6, 0),
+    NumberSequenceKeypoint.new(1, 1)
+})
+
+local ray2 = Instance.new("Frame", rayContainer)
+ray2.Size = UDim2.new(0.9, 0, 0.9, 0)
+ray2.Position = UDim2.new(0.05, 0, 0.05, 0)
+ray2.BackgroundTransparency = 0.68 
+ray2.BackgroundColor3 = ActiveTheme.Nebula2
+local rayGrad2 = Instance.new("UIGradient", ray2)
+rayGrad2.Rotation = 90
+rayGrad2.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 1),
+    NumberSequenceKeypoint.new(0.4, 0),
+    NumberSequenceKeypoint.new(0.6, 0),
+    NumberSequenceKeypoint.new(1, 1)
+})
+
+-- // BRANDING HEADER PANEL
+local logoContainer = Instance.new("Frame", main)
+logoContainer.Size = UDim2.new(1, 0, 0, 65)
+logoContainer.BackgroundTransparency = 1
+logoContainer.ZIndex = 2
+
+local logoLabel = Instance.new("TextLabel", logoContainer)
+logoLabel.Size = UDim2.new(1, 0, 1, 0)
+logoLabel.Position = UDim2.new(0, 0, 0, 12)
+logoLabel.Text = "G A L A X Y"
+logoLabel.Font = Enum.Font.GothamBold
+logoLabel.TextSize = 34
+logoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+logoLabel.BackgroundTransparency = 1
+logoLabel.ZIndex = 3
+
+local logoGradient = Instance.new("UIGradient", logoLabel)
+logoGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 100, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 230, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 150, 255))
+})
+
+task.spawn(function()
+    local timer = 0
+    while task.wait(0.015) do
+        if not gui or not gui.Parent then break end
+        timer = timer + 0.01
+        pcall(function()
+            rayGrad1.Rotation = (rayGrad1.Rotation + 0.4) % 360
+            rayGrad2.Rotation = (rayGrad2.Rotation - 0.3) % 360
+            
+            imgLabel.Rotation = (imgLabel.Rotation + 0.05) % 360
+            logoGradient.Offset = Vector2.new(math.sin(timer * 2) * 0.5, 0)
+            welcomeTxtGrad.Offset = Vector2.new(math.sin(timer * 1.5) * 0.3, 0)
+            loadingTxtGrad.Offset = Vector2.new(math.sin(timer * 1.5) * 0.3, 0)
+        end)
+    end
+end)
+
+-- // TAB SELECTION BAR
+local tabSelectionContainer = Instance.new("Frame", main)
+tabSelectionContainer.Size = UDim2.new(1, -40, 0, 32)
+tabSelectionContainer.Position = UDim2.new(0, 20, 0, 75)
+tabSelectionContainer.BackgroundTransparency = 1
+tabSelectionContainer.ZIndex = 3
+
+local tabLayout = Instance.new("UIListLayout", tabSelectionContainer)
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.Padding = UDim.new(0, 12)
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- // MAIN DISPLAY CONTAINER
+local pageDisplayContainer = Instance.new("Frame", main)
+pageDisplayContainer.Position = UDim2.new(0, 20, 0, 120)
+pageDisplayContainer.Size = UDim2.new(1, -40, 1, -140)
+pageDisplayContainer.BackgroundTransparency = 1
+pageDisplayContainer.ZIndex = 3
+
+local activePages = {}
+
+local function generateNavigationTab(tabTitle)
+    local button = Instance.new("TextButton", tabSelectionContainer)
+    button.Size = UDim2.new(0, 100, 1, 0)
+    button.BackgroundColor3 = Color3.fromRGB(20, 12, 38)
+    button.BackgroundTransparency = 0.3
+    button.Text = tabTitle:upper()
+    button.Font = Enum.Font.GothamBold
+    button.TextColor3 = Color3.fromRGB(220, 180, 255)
+    button.TextSize = 12
+    button.ZIndex = 4
+    
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 6)
+    local bStroke = Instance.new("UIStroke", button)
+    bStroke.Color = Color3.fromRGB(130, 60, 200)
+    bStroke.Thickness = 1
+
+    local pageFrame = Instance.new("Frame", pageDisplayContainer)
+    pageFrame.Size = UDim2.new(1, 0, 1, 0)
+    pageFrame.BackgroundTransparency = 1
+    pageFrame.Visible = false
+    pageFrame.ZIndex = 3
+
+    button.MouseButton1Click:Connect(function()
+        for _, uiElement in pairs(activePages) do 
+            uiElement.page.Visible = false 
+            uiElement.tabBtn.UIStroke.Color = Color3.fromRGB(130, 60, 200) 
+        end
+        pageFrame.Visible = true
+        bStroke.Color = mainStroke.Color
+    end)
+
+    activePages[tabTitle] = { page = pageFrame, tabBtn = button }
+    return pageFrame
+end
+
+local fakerPage = generateNavigationTab("Faker")
+local themesPage = generateNavigationTab("Themes")
+local settingsPage = generateNavigationTab("Settings")
+
+fakerPage.Visible = true
+
+-- // FAKER PAGE COMPONENTS
+local clearAllBar = Instance.new("Frame", fakerPage)
+clearAllBar.Size = UDim2.new(1, 0, 0, 30)
+clearAllBar.BackgroundTransparency = 1
+clearAllBar.ZIndex = 3
+
+local clearAllBtn = Instance.new("TextButton", clearAllBar)
+clearAllBtn.Size = UDim2.new(0, 100, 1, 0)
+clearAllBtn.Position = UDim2.new(1, -100, 0, 0)
+clearAllBtn.BackgroundColor3 = Color3.fromRGB(40, 15, 30)
+clearAllBtn.BackgroundTransparency = 0.4
+clearAllBtn.Text = "CLEAR ALL"
+clearAllBtn.Font = Enum.Font.GothamBold
+clearAllBtn.TextSize = 11
+clearAllBtn.TextColor3 = Color3.fromRGB(255, 80, 100)
+clearAllBtn.ZIndex = 4
+
+Instance.new("UICorner", clearAllBtn).CornerRadius = UDim.new(0, 6)
+local clearStroke = Instance.new("UIStroke", clearAllBtn)
+clearStroke.Color = Color3.fromRGB(120, 30, 50)
+
+local fakerList = Instance.new("ScrollingFrame", fakerPage)
+fakerList.Position = UDim2.new(0, 0, 0, 38)
+fakerList.Size = UDim2.new(1, 0, 1, -38)
+fakerList.BackgroundTransparency = 1
+fakerList.ScrollBarThickness = 2
+fakerList.ScrollBarImageColor3 = ActiveTheme.Accent
+fakerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+fakerList.AutomaticCanvasSize = "Y"
+fakerList.ZIndex = 3
+
+local listLayout = Instance.new("UIListLayout", fakerList)
+listLayout.Padding = UDim.new(0, 10)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local placeholderLabel = Instance.new("TextLabel", fakerPage)
+placeholderLabel.Size = UDim2.new(1, 0, 0, 40)
+placeholderLabel.Position = UDim2.new(0, 0, 0.4, 0)
+placeholderLabel.BackgroundTransparency = 1
+placeholderLabel.Text = "NO GAMEPASSES FOUND YET"
+placeholderLabel.Font = Enum.Font.Code
+placeholderLabel.TextSize = 14
+placeholderLabel.TextColor3 = ActiveTheme.Accent 
+placeholderLabel.TextTransparency = 0.35 
+placeholderLabel.ZIndex = 3
+
+clearAllBtn.MouseButton1Click:Connect(function()
+    for _, child in ipairs(fakerList:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    placeholderLabel.Visible = true
+end)
+
+-- // THEMES SCROLLING SYSTEM VIEW
+local themesList = Instance.new("ScrollingFrame", themesPage)
+themesList.Size = UDim2.new(1, 0, 1, 0)
+themesList.BackgroundTransparency = 1
+themesList.ScrollBarThickness = 2
+themesList.ScrollBarImageColor3 = ActiveTheme.Accent
+themesList.CanvasSize = UDim2.new(0, 0, 0, 0)
+themesList.AutomaticCanvasSize = "Y"
+themesList.ZIndex = 3
+
+local themesLayout = Instance.new("UIListLayout", themesList)
+themesLayout.Padding = UDim.new(0, 10)
+
+-- // DYNAMIC THEME LIVE REFLECTION WRAPPER ENGINE
+local function shiftInterfaceTheme(accentColor, nebulaColor1, nebulaColor2, skipSave)
+    ActiveTheme.Accent = accentColor
+    ActiveTheme.Nebula1 = nebulaColor1
+    ActiveTheme.Nebula2 = nebulaColor2
+
+    mainStroke.Color = accentColor
+    ray1.BackgroundColor3 = nebulaColor1
+    ray2.BackgroundColor3 = nebulaColor2
+    imgLabel.ImageColor3 = nebulaColor1
+    
+    sliderFillGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, accentColor),
+        ColorSequenceKeypoint.new(1, nebulaColor2)
+    })
+    
+    placeholderLabel.TextColor3 = accentColor
+    
+    logoGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, accentColor),
+        ColorSequenceKeypoint.new(0.5, nebulaColor2),
+        ColorSequenceKeypoint.new(1, nebulaColor1)
+    })
+    
+    fakerList.ScrollBarImageColor3 = accentColor
+    themesList.ScrollBarImageColor3 = accentColor
+    
+    for _, uiElement in pairs(activePages) do
+        if uiElement.page.Visible then
+            uiElement.tabBtn.UIStroke.Color = accentColor
+        end
+    end
+
+    if not skipSave then
+        autoSaveProfile()
+    end
+end
+
+local function addThemeCard(labelName, accentColor, nebulaColor1, nebulaColor2)
+    local card = Instance.new("TextButton", themesList)
+    card.Size = UDim2.new(1, -10, 0, 50)
+    card.BackgroundColor3 = Color3.fromRGB(15, 8, 25)
+    card.BackgroundTransparency = 0.5
+    card.Text = "   " .. labelName
+    card.Font = Enum.Font.GothamBold
+    card.TextColor3 = accentColor
+    card.TextSize = 13
+    card.TextXAlignment = "Left"
+    card.ZIndex = 4
+    
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+    local cStroke = Instance.new("UIStroke", card)
+    cStroke.Color = Color3.fromRGB(60, 40, 90)
+
+    card.MouseButton1Click:Connect(function()
+        shiftInterfaceTheme(accentColor, nebulaColor1, nebulaColor2)
+    end)
+end
+
+-- Load Theme Profiles
+addThemeCard("Fuchsia", Color3.fromRGB(220, 40, 240), Color3.fromRGB(230, 20, 255), Color3.fromRGB(0, 210, 255))
+addThemeCard("Cyan", Color3.fromRGB(0, 240, 255), Color3.fromRGB(0, 120, 255), Color3.fromRGB(0, 255, 150))
+addThemeCard("Orange", Color3.fromRGB(255, 90, 0), Color3.fromRGB(255, 40, 0), Color3.fromRGB(255, 180, 0))
+addThemeCard("Mint", Color3.fromRGB(40, 255, 120), Color3.fromRGB(0, 200, 50), Color3.fromRGB(180, 255, 0))
+addThemeCard("Mono", Color3.fromRGB(240, 240, 240), Color3.fromRGB(140, 140, 140), Color3.fromRGB(60, 60, 60))
+addThemeCard("Crimson", Color3.fromRGB(255, 30, 60), Color3.fromRGB(130, 0, 20), Color3.fromRGB(40, 0, 5))
+addThemeCard("Ocean", Color3.fromRGB(0, 100, 255), Color3.fromRGB(0, 30, 120), Color3.fromRGB(2, 5, 30))
+addThemeCard("Amethyst", Color3.fromRGB(160, 60, 255), Color3.fromRGB(90, 10, 180), Color3.fromRGB(240, 80, 255))
+addThemeCard("Blossom", Color3.fromRGB(255, 160, 200), Color3.fromRGB(255, 200, 220), Color3.fromRGB(180, 210, 255))
+addThemeCard("Cyber", Color3.fromRGB(255, 230, 0), Color3.fromRGB(20, 20, 20), Color3.fromRGB(255, 80, 0))
+
+-- // SETTINGS PAGE COMPONENTS
+local settingsList = Instance.new("ScrollingFrame", settingsPage)
+settingsList.Size = UDim2.new(1, 0, 1, 0)
+settingsList.BackgroundTransparency = 1
+settingsList.ScrollBarThickness = 2
+settingsList.ScrollBarImageColor3 = ActiveTheme.Accent
+settingsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+settingsList.AutomaticCanvasSize = "Y"
+settingsList.ZIndex = 3
+
+local settingsLayout = Instance.new("UIListLayout", settingsList)
+settingsLayout.Padding = UDim.new(0, 12)
+
+local bindCard = Instance.new("Frame", settingsList)
+bindCard.Size = UDim2.new(1, -10, 0, 60)
+bindCard.BackgroundColor3 = Color3.fromRGB(15, 8, 25)
+bindCard.BackgroundTransparency = 0.5
+bindCard.ZIndex = 4
+Instance.new("UICorner", bindCard).CornerRadius = UDim.new(0, 8)
+local bindCardStroke = Instance.new("UIStroke", bindCard)
+bindCardStroke.Color = Color3.fromRGB(60, 40, 90)
+
+local bindLabel = Instance.new("TextLabel", bindCard)
+bindLabel.Size = UDim2.new(0, 280, 1, 0)
+bindLabel.Position = UDim2.new(0, 15, 0, 0)
+bindLabel.Text = "Interface Menu Toggle\nChange hotkey used to open/close window"
+bindLabel.Font = Enum.Font.Gotham
+bindLabel.TextSize = 12
+bindLabel.TextColor3 = Color3.fromRGB(180, 160, 210)
+bindLabel.TextXAlignment = Enum.TextXAlignment.Left
+bindLabel.BackgroundTransparency = 1
+bindLabel.ZIndex = 5
+
+local bindBtn = Instance.new("TextButton", bindCard)
+bindBtn.Size = UDim2.new(0, 120, 0, 32)
+bindBtn.Position = UDim2.new(1, -135, 0.5, -16)
+bindBtn.BackgroundColor3 = Color3.fromRGB(20, 12, 38)
+bindBtn.Text = "DELETE"
+bindBtn.Font = Enum.Font.GothamBold
+bindBtn.TextColor3 = ActiveTheme.Accent
+bindBtn.TextSize = 11
+bindBtn.ZIndex = 5
+Instance.new("UICorner", bindBtn).CornerRadius = UDim.new(0, 6)
+local bBtnStroke = Instance.new("UIStroke", bindBtn)
+bBtnStroke.Color = Color3.fromRGB(130, 60, 200)
+
+bindBtn.MouseButton1Click:Connect(function()
+    if isListeningForKey or isListeningForTermKey then return end
+    isListeningForKey = true
+    bindBtn.Text = "[ PRESS ANY KEY ]"
+    bindBtn.TextColor3 = Color3.fromRGB(255, 255, 100)
+end)
+
+local termCard = Instance.new("Frame", settingsList)
+termCard.Size = UDim2.new(1, -10, 0, 60)
+termCard.BackgroundColor3 = Color3.fromRGB(15, 8, 25)
+termCard.BackgroundTransparency = 0.5
+termCard.ZIndex = 4
+Instance.new("UICorner", termCard).CornerRadius = UDim.new(0, 8)
+local termCardStroke = Instance.new("UIStroke", termCard)
+termCardStroke.Color = Color3.fromRGB(60, 40, 90)
+
+local termLabel = Instance.new("TextLabel", termCard)
+termLabel.Size = UDim2.new(0, 280, 1, 0)
+termLabel.Position = UDim2.new(0, 15, 0, 0)
+termLabel.Text = "Terminate Execution\nChange hotkey used to fully destroy the script"
+termLabel.Font = Enum.Font.Gotham
+termLabel.TextSize = 12
+termLabel.TextColor3 = Color3.fromRGB(180, 160, 210)
+termLabel.TextXAlignment = Enum.TextXAlignment.Left
+termLabel.BackgroundTransparency = 1
+termLabel.ZIndex = 5
+
+local termBtn = Instance.new("TextButton", termCard)
+termBtn.Size = UDim2.new(0, 120, 0, 32)
+termBtn.Position = UDim2.new(1, -135, 0.5, -16)
+termBtn.BackgroundColor3 = Color3.fromRGB(20, 12, 38)
+termBtn.Text = "END"
+termBtn.Font = Enum.Font.GothamBold
+termBtn.TextColor3 = ActiveTheme.Accent
+termBtn.TextSize = 11
+termBtn.ZIndex = 5
+Instance.new("UICorner", termBtn).CornerRadius = UDim.new(0, 6)
+local tBtnStroke = Instance.new("UIStroke", termBtn)
+tBtnStroke.Color = Color3.fromRGB(130, 60, 200)
+
+termBtn.MouseButton1Click:Connect(function()
+    if isListeningForKey or isListeningForTermKey then return end
+    isListeningForTermKey = true
+    termBtn.Text = "[ PRESS ANY KEY ]"
+    termBtn.TextColor3 = Color3.fromRGB(255, 255, 100)
+end)
+
+-- Re-binding listener with automatic auto-saves
+table.insert(connections, UIS.InputBegan:Connect(function(input, processed)
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+    local pressedKey = input.KeyCode
+    local isBlacklisted = (pressedKey == Enum.KeyCode.W or pressedKey == Enum.KeyCode.A or pressedKey == Enum.KeyCode.S or pressedKey == Enum.KeyCode.D or pressedKey == Enum.KeyCode.Space or pressedKey == Enum.KeyCode.Slash or pressedKey == Enum.KeyCode.Escape)
+    
+    if isListeningForKey then
+        isListeningForKey = false
+        if not isBlacklisted then 
+            ToggleKey = pressedKey 
+            autoSaveProfile()
+        end
+        bindBtn.Text = ToggleKey.Name:upper()
+        bindBtn.TextColor3 = ActiveTheme.Accent
+    elseif isListeningForTermKey then
+        isListeningForTermKey = false
+        if not isBlacklisted then 
+            TerminateKey = pressedKey 
+            autoSaveProfile()
+        end
+        termBtn.Text = TerminateKey.Name:upper()
+        termBtn.TextColor3 = ActiveTheme.Accent
+    end
+end))
+
+-- // Configurations Profile Decoder Loader
+if readfile and isfile and isfile(CONFIG_FILE) then
+    pcall(function()
+        local fileData = readfile(CONFIG_FILE)
+        local decoded = HttpService:JSONDecode(fileData)
+        if decoded then
+            if decoded.Accent then ActiveTheme.Accent = Color3.new(decoded.Accent[1], decoded.Accent[2], decoded.Accent[3]) end
+            if decoded.Nebula1 then ActiveTheme.Nebula1 = Color3.new(decoded.Nebula1[1], decoded.Nebula1[2], decoded.Nebula1[3]) end
+            if decoded.Nebula2 then ActiveTheme.Nebula2 = Color3.new(decoded.Nebula2[1], decoded.Nebula2[2], decoded.Nebula2[3]) end
+            
+            if decoded.SavedKeybind then
+                for _, enumKey in ipairs(Enum.KeyCode:GetEnumItems()) do
+                    if enumKey.Value == decoded.SavedKeybind then ToggleKey = enumKey break end
+                end
+            end
+            if decoded.SavedTerminateBind then
+                for _, enumKey in ipairs(Enum.KeyCode:GetEnumItems()) do
+                    if enumKey.Value == decoded.SavedTerminateBind then TerminateKey = enumKey break end
+                end
+            end
+            if decoded.WindowSize then
+                SavedSize = UDim2.new(0, decoded.WindowSize[1], 0, decoded.WindowSize[2])
+            end
+            if decoded.WindowPos then
+                SavedPos = UDim2.new(decoded.WindowPos[1], decoded.WindowPos[2], decoded.WindowPos[3], decoded.WindowPos[4])
+            end
+            
+            main.Size = SavedSize
+            main.Position = SavedPos
+        end
+    end)
+end
+
+-- // FAUX PRODUCT INTERCEPT LOGGER LOGIC
+local itemSequence = 0
+local function registerDetectedItem(purchaseType, assetId)
+    placeholderLabel.Visible = false 
+    itemSequence = itemSequence + 1
+    local metadata
+    pcall(function() 
+        metadata = MarketplaceService:GetProductInfo(assetId, (purchaseType == "Gamepass" and Enum.InfoType.GamePass or Enum.InfoType.Product)) 
+    end)
+    
+    local itemCard = Instance.new("Frame", fakerList)
+    itemCard.Size = UDim2.new(1, -10, 0, 75)
+    itemCard.BackgroundColor3 = Color3.fromRGB(12, 6, 22)
+    itemCard.BackgroundTransparency = 0.45
+    itemCard.LayoutOrder = -itemSequence
+    itemCard.ZIndex = 3
+    
+    Instance.new("UICorner", itemCard).CornerRadius = UDim.new(0, 8)
+    local cardStroke = Instance.new("UIStroke", itemCard)
+    cardStroke.Color = Color3.fromRGB(130, 60, 200)
+
+    local label = Instance.new("TextLabel", itemCard)
+    label.Size = UDim2.new(1, -200, 1, 0)
+    label.Position = UDim2.new(0, 15, 0, 0)
+    label.Text = "✧ " .. (metadata and metadata.Name:upper() or (purchaseType .. " " .. assetId)) .. "\nID: " .. assetId
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.Code
+    label.TextSize = 12
+    label.TextXAlignment = "Left"
+    label.TextWrapped = true
+    label.BackgroundTransparency = 1
+    label.ZIndex = 4
+
+    local actionContainer = Instance.new("Frame", itemCard)
+    actionContainer.Size = UDim2.new(0, 180, 1, 0)
+    actionContainer.Position = UDim2.new(1, -195, 0, 0)
+    actionContainer.BackgroundTransparency = 1
+    actionContainer.ZIndex = 3
+    
+    local btnLayout = Instance.new("UIListLayout", actionContainer)
+    btnLayout.FillDirection = Enum.FillDirection.Horizontal
+    btnLayout.Padding = UDim.new(0, 8)
+    btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+    local executeBtn = Instance.new("TextButton", actionContainer)
+    executeBtn.Size = UDim2.new(0, 85, 0, 32)
+    executeBtn.BackgroundColor3 = ActiveTheme.Accent
+    executeBtn.Text = "RUN"
+    executeBtn.Font = Enum.Font.GothamBold
+    executeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    executeBtn.TextSize = 13
+    executeBtn.ZIndex = 4
+    Instance.new("UICorner", executeBtn).CornerRadius = UDim.new(0, 6)
+
+    local continuousBtn = Instance.new("TextButton", actionContainer)
+    continuousBtn.Size = UDim2.new(0, 90, 0, 32)
+    continuousBtn.BackgroundColor3 = Color3.fromRGB(255, 30, 60)
+    continuousBtn.Text = "LOOP: OFF"
+    continuousBtn.Font = Enum.Font.GothamBold
+    continuousBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    continuousBtn.TextSize = 11
+    continuousBtn.ZIndex = 4
+    
+    Instance.new("UICorner", continuousBtn).CornerRadius = UDim.new(0, 6)
+    local loopStroke = Instance.new("UIStroke", continuousBtn)
+    loopStroke.Color = Color3.fromRGB(130, 60, 200)
+
+    local activeLoop = false
+    local function dispatchSignal()
+        pcall(function()
+            if purchaseType == "Product" then MarketplaceService:SignalPromptProductPurchaseFinished(lp.UserId, assetId, true)
+            elseif purchaseType == "Gamepass" then MarketplaceService:SignalPromptGamePassPurchaseFinished(lp, assetId, true) end
+        end)
+    end
+
+    executeBtn.MouseButton1Click:Connect(dispatchSignal)
+    continuousBtn.MouseButton1Click:Connect(function()
+        activeLoop = not activeLoop
+        continuousBtn.Text = activeLoop and "LOOP: ON" or "LOOP: OFF"
+        continuousBtn.BackgroundColor3 = activeLoop and Color3.fromRGB(0, 180, 120) or Color3.fromRGB(25, 15, 40)
+        task.spawn(function()
+            while activeLoop and itemCard.Parent do
+                dispatchSignal()
+                task.wait(0.1)
+            end
+        end)
+    end)
+end
+
+-- Hooks Instantiation
+table.insert(connections, MarketplaceService.PromptProductPurchaseFinished:Connect(function(u, id, verification) if u == lp.UserId and not verification then registerDetectedItem("Product", id) end end))
+table.insert(connections, MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(p, id, verification) if p == lp and not verification then registerDetectedItem("Gamepass", id) end end))
+
+-- // ADVANCED CORNER/EDGE RESIZING ENGINE
+local resizeButton = Instance.new("ImageButton", main)
+resizeButton.Size = UDim2.new(0, 20, 0, 20)
+resizeButton.Position = UDim2.new(1, -20, 1, -20)
+resizeButton.BackgroundTransparency = 1
+resizeButton.Image = "rbxassetid://10214300067"
+resizeButton.ImageColor3 = Color3.fromRGB(220, 40, 240)
+resizeButton.ZIndex = 10
+
+local MIN_WIDTH, MIN_HEIGHT = 400, 300
+local resizing = false
+local dragStartSize, dragStartPos
+
+resizeButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        resizing = true
+        dragStartSize = main.Size
+        dragStartPos = input.Position
+        
+        local endCon
+        endCon = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then 
+                resizing = false 
+                endCon:Disconnect()
+                SavedSize = main.Size
+                autoSaveProfile()
+            end
+        end)
+    end
+end)
+
+table.insert(connections, UIS.InputChanged:Connect(function(input)
+    if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStartPos
+        local targetWidth = math.max(MIN_WIDTH, dragStartSize.X.Offset + delta.X)
+        local targetHeight = math.max(MIN_HEIGHT, dragStartSize.Y.Offset + delta.Y)
+        main.Size = UDim2.new(0, targetWidth, 0, targetHeight)
+    end
+end))
+
+-- // STANDARD DRAGGING ENGINE LOGIC
+local dragging, dragInput, dragStart, startPos
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+main.InputBegan:Connect(function(input)
+    if not resizing and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        if input.Position.Y - main.AbsolutePosition.Y <= 70 then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+            
+            local endCon
+            endCon = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then 
+                    dragging = false 
+                    endCon:Disconnect()
+                    SavedPos = main.Position
+                    autoSaveProfile()
+                end
+            end)
+        end
+    end
+end)
+
+main.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+
+table.insert(connections, UIS.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then updateDrag(input) end
+end))
+
+-- Default Initial Focus Highlight
+activePages["Faker"].tabBtn.UIStroke.Color = ActiveTheme.Accent
+
+-- Run configuration styling passes (skip saving on initial load compilation)
+shiftInterfaceTheme(ActiveTheme.Accent, ActiveTheme.Nebula1, ActiveTheme.Nebula2, true)
+bindBtn.Text = ToggleKey.Name:upper()
+bindBtn.TextColor3 = ActiveTheme.Accent
+termBtn.Text = TerminateKey.Name:upper()
+termBtn.TextColor3 = ActiveTheme.Accent
+
+-- // NON-BLOCKING INTRO TIMELINE SYSTEM
+task.spawn(function()
+    -- Phase 1: Welcome Screen (Exactly 2.0 seconds)
+    task.wait(2.0)
+    
+    local welcomeTextFade = TweenService:Create(welcomeText, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+    local welcomeStrokeFade = TweenService:Create(textUIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 1})
+    welcomeTextFade:Play()
+    welcomeStrokeFade:Play()
+    task.wait(0.3)
+    welcomeStageFrame.Visible = false
+    
+    -- Phase 2: Loading Screen + Slider Completion Tracking
+    loadingStageFrame.Visible = true
+    
+    -- Smoothly fill up the loader completely over exactly 2.5 seconds
+    local fillTimeline = TweenService:Create(sliderFill, TweenInfo.new(2.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+        Size = UDim2.new(1, 0, 1, 0)
+    })
+    fillTimeline:Play()
+    task.wait(2.5) 
+    
+    -- Clear Master Overlay Outflow Fading
+    local masterOverlayFade = TweenService:Create(masterOverlay, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+    local imgLabelFade = TweenService:Create(imgLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 1})
+    local loadingTextFade = TweenService:Create(loadingText, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+    local loadingStrokeFade = TweenService:Create(loadingUIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 1})
+    
+    local sliderBgFade = TweenService:Create(sliderBackground, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+    local sliderBgStrokeFade = TweenService:Create(sliderBgStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 1})
+    local sliderFillFade = TweenService:Create(sliderFill, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+    
+    masterOverlayFade:Play()
+    imgLabelFade:Play()
+    loadingTextFade:Play()
+    loadingStrokeFade:Play()
+    sliderBgFade:Play()
+    sliderBgStrokeFade:Play()
+    sliderFillFade:Play()
+    
+    -- Capture Normal Layout metrics before spring expansion begins
+    local originalSize = main.Size
+    local originalPos = main.Position
+    
+    -- Align Anchor Centers
+    main.AnchorPoint = Vector2.new(0.5, 0.5)
+    main.Position = UDim2.new(originalPos.X.Scale, originalPos.X.Offset + (originalSize.X.Offset / 2), originalPos.Y.Scale, originalPos.Y.Offset + (originalSize.Y.Offset / 2))
+    
+    -- Compress to minimum point signature 
+    main.Size = UDim2.new(0, 10, 0, 10)
+    main.Visible = true 
+    
+    -- Elastic Launch Spring Easing
+    local springMenuBounce = TweenService:Create(main, TweenInfo.new(0.85, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+        Size = originalSize
+    })
+    springMenuBounce:Play()
+
+    task.wait(0.85)
+    masterOverlay:Destroy()
+end)
+
+-- // USER HOTKEYS
+table.insert(connections, UIS.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == ToggleKey then
+        main.Visible = not main.Visible
+    elseif input.KeyCode == TerminateKey then
+        for _, connection in ipairs(connections) do connection:Disconnect() end
+        gui:Destroy()
+    end
+end))
