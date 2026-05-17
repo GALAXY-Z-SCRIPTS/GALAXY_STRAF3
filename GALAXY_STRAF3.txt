@@ -1,0 +1,231 @@
+--[[
+    GALAXY SURF - Pro Tip Edition
+    [F1]: Toggle Surf | [F2]: Streamer | [F3]: Terminate
+]]
+
+loadstring([=[
+    local R = game:GetService("RunService")
+    local U = game:GetService("UserInputService")
+    local V = game:GetService("VirtualInputManager")
+    local C = game:GetService("CoreGui")
+    local T = game:GetService("TweenService")
+    local P = game:GetService("Players").LocalPlayer
+
+    local Term, Sens, En, SM = false, 3.5, false, false
+    local RealA, RealD = false, false
+
+    -- // 1. FULL-SCREEN NEBULA SPLASH & SOUND \\
+    local SG = Instance.new("ScreenGui", C)
+    SG.DisplayOrder = 999999
+    SG.IgnoreGuiInset = true
+    
+    local Splash = Instance.new("Frame", SG)
+    Splash.Size = UDim2.new(1, 0, 1, 0)
+    Splash.BackgroundColor3 = Color3.new(1, 1, 1)
+    Splash.BorderSizePixel = 0
+    
+    local SplashGrad = Instance.new("UIGradient", Splash)
+    SplashGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(5, 2, 15)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(70, 20, 90)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 5, 35))
+    })
+
+    local MainTxt = Instance.new("TextLabel", Splash)
+    MainTxt.Size = UDim2.new(1, 0, 1, 0)
+    MainTxt.BackgroundTransparency = 1
+    MainTxt.Text = "Welcome :)"
+    MainTxt.TextColor3 = Color3.new(1, 1, 1)
+    MainTxt.Font = Enum.Font.GothamBlack
+    MainTxt.TextSize = 55
+    MainTxt.TextTransparency = 1
+
+    local LoadBarBG = Instance.new("Frame", Splash)
+    LoadBarBG.Size = UDim2.new(0, 300, 0, 4)
+    LoadBarBG.Position = UDim2.new(0.5, -150, 0.6, 0)
+    LoadBarBG.BackgroundColor3 = Color3.new(0, 0, 0)
+    LoadBarBG.BorderSizePixel = 0; LoadBarBG.BackgroundTransparency = 1
+
+    local LoadBarFill = Instance.new("Frame", LoadBarBG)
+    LoadBarFill.Size = UDim2.new(0, 0, 1, 0)
+    LoadBarFill.BackgroundColor3 = Color3.new(1, 1, 1); LoadBarFill.BorderSizePixel = 0
+
+    local TipTxt = Instance.new("TextLabel", Splash)
+    TipTxt.Size = UDim2.new(1, 0, 0, 30)
+    TipTxt.Position = UDim2.new(0, 0, 0.65, 0)
+    TipTxt.BackgroundTransparency = 1
+    TipTxt.Text = "Tip: press A+Space to stop drift after stopping the strafe."
+    TipTxt.TextColor3 = Color3.new(1, 1, 1)
+    TipTxt.Font = Enum.Font.GothamMedium
+    TipTxt.TextSize = 16
+    TipTxt.TextTransparency = 1
+
+    local function ApplyGalaxy(obj)
+        local g = Instance.new("UIGradient", obj)
+        g.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 100, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 200, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 100, 255))
+        })
+        return g
+    end
+    local TipG = ApplyGalaxy(TipTxt)
+
+    local SpaceMusic = Instance.new("Sound", Splash)
+    SpaceMusic.SoundId = "rbxassetid://901112221" 
+    SpaceMusic.Looped = true; SpaceMusic.Volume = 0; SpaceMusic:Play()
+    T:Create(SpaceMusic, TweenInfo.new(3), {Volume = 0.5}):Play()
+
+    -- // 2. MAIN GUI SETUP \\
+    local G = Instance.new("ScreenGui", C); G.Enabled = false
+    local F = Instance.new("Frame", G)
+    F.Size = UDim2.new(0, 240, 0, 0); F.Position = UDim2.new(0, 20, 0, 20)
+    F.BackgroundColor3 = Color3.new(1, 1, 1); F.BorderSizePixel = 0
+    F.ClipsDescendants = true; F.Active = true
+    Instance.new("UICorner", F).CornerRadius = UDim.new(0, 12)
+
+    local Grad = Instance.new("UIGradient", F)
+    Grad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 5, 25)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(70, 25, 100)), ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 10, 40))})
+    
+    local Stroke = Instance.new("UIStroke", F)
+    Stroke.Color = Color3.fromRGB(255, 50, 255); Stroke.Thickness = 2; Stroke.Transparency = 1
+
+    local Cont = Instance.new("Frame", F); Cont.Size = UDim2.new(1, 0, 1, 0); Cont.BackgroundTransparency = 1
+
+    local Title = Instance.new("TextLabel", Cont)
+    Title.Size = UDim2.new(1, 0, 0, 50); Title.BackgroundTransparency = 1
+    Title.Text = "G A L A X Y"; Title.TextColor3 = Color3.new(1, 1, 1)
+    Title.Font = Enum.Font.GothamBlack; Title.TextSize = 28; Title.Parent = Cont
+    local TitleG = ApplyGalaxy(Title)
+
+    local Status = Instance.new("TextLabel", Cont)
+    Status.Size = UDim2.new(1, 0, 0, 30); Status.Position = UDim2.new(0, 0, 0.3, 0)
+    Status.BackgroundTransparency = 1; Status.Text = "[F1] SURF: OFF"
+    Status.TextColor3 = Color3.new(1, 1, 1); Status.Font = Enum.Font.GothamBold; Status.TextSize = 16; Status.Parent = Cont
+    local StatusG = ApplyGalaxy(Status)
+
+    local K = Instance.new("TextLabel", Cont)
+    K.Size = UDim2.new(1, 0, 0, 20); K.Position = UDim2.new(0, 0, 0.5, 0)
+    K.BackgroundTransparency = 1; K.Text = "[F2] STREAMER | [F3] TERMINATE"
+    K.TextColor3 = Color3.new(1, 1, 1); K.Font = Enum.Font.Code; K.TextSize = 9; K.Parent = Cont
+    local KeysG = ApplyGalaxy(K)
+
+    local SB = Instance.new("Frame", Cont); SB.Size = UDim2.new(0.8, 0, 0, 4); SB.Position = UDim2.new(0.1, 0, 0.75, 0); SB.BackgroundColor3 = Color3.new(0, 0, 0); SB.BorderSizePixel = 0; SB.Parent = Cont
+    local SF = Instance.new("Frame", SB); SF.Size = UDim2.new(0.35, 0, 1, 0); SF.BackgroundColor3 = Color3.fromRGB(255, 50, 255); SF.BorderSizePixel = 0; SF.Parent = SB
+    local ST = Instance.new("TextLabel", Cont); ST.Size = UDim2.new(1, 0, 0, 20); ST.Position = UDim2.new(0, 0, 0.85, 0); ST.BackgroundTransparency = 1; ST.Text = "SENS: " .. Sens; ST.TextColor3 = Color3.new(0.8, 0.8, 0.8); ST.Font = Enum.Font.GothamBold; ST.TextSize = 11; ST.Parent = Cont
+
+    -- // 3. ANIMATION ENGINE \\
+    local function StartEngine()
+        task.spawn(function()
+            local t = 0
+            while not Term do
+                t = t + 0.02
+                local off = math.sin(t) * 0.5
+                Grad.Rotation = 45 + (math.sin(t) * 15)
+                TitleG.Offset = Vector2.new(off, 0)
+                StatusG.Offset = Vector2.new(off, 0)
+                KeysG.Offset = Vector2.new(off, 0)
+                TipG.Offset = Vector2.new(off, 0)
+                R.RenderStepped:Wait()
+            end
+        end)
+
+        task.spawn(function()
+            while not Term do
+                local char = P.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    for _, s in ipairs(char.HumanoidRootPart:GetChildren()) do
+                        if s:IsA("Sound") and (s.Name == "Falling" or s.Name == "Running" or s.Name == "Climbing") then s.Volume = 0 end
+                    end
+                end
+                task.wait(1)
+            end
+        end)
+    end
+
+    task.spawn(function()
+        T:Create(MainTxt, TweenInfo.new(1.2), {TextTransparency = 0}):Play()
+        task.wait(2.5)
+        T:Create(MainTxt, TweenInfo.new(0.8), {TextTransparency = 1}):Play()
+        task.wait(0.8)
+
+        MainTxt.Text = "LOADING..."
+        ApplyGalaxy(MainTxt)
+        T:Create(MainTxt, TweenInfo.new(0.8), {TextTransparency = 0}):Play()
+        T:Create(TipTxt, TweenInfo.new(1), {TextTransparency = 0}):Play()
+        T:Create(LoadBarBG, TweenInfo.new(0.5), {BackgroundTransparency = 0.5}):Play()
+        
+        local loading = T:Create(LoadBarFill, TweenInfo.new(5, Enum.EasingStyle.Sine), {Size = UDim2.new(1, 0, 1, 0)})
+        loading:Play()
+        
+        loading.Completed:Connect(function()
+            task.wait(0.8)
+            local fadeOut = T:Create(Splash, TweenInfo.new(2), {BackgroundTransparency = 1})
+            T:Create(MainTxt, TweenInfo.new(1.2), {TextTransparency = 1}):Play()
+            T:Create(TipTxt, TweenInfo.new(1), {TextTransparency = 1}):Play()
+            T:Create(SpaceMusic, TweenInfo.new(2), {Volume = 0}):Play()
+            fadeOut:Play()
+            
+            fadeOut.Completed:Connect(function()
+                SG:Destroy(); G.Enabled = true
+                T:Create(F, TweenInfo.new(1.2, Enum.EasingStyle.Elastic), {Size = UDim2.new(0, 240, 0, 180)}):Play()
+                T:Create(Stroke, TweenInfo.new(1), {Transparency = 0.5}):Play()
+                StartEngine()
+            end)
+        end)
+    end)
+
+    -- // 4. CORE CONTROLS \\
+    U.InputBegan:Connect(function(i, processed)
+        if Term then return end
+        if not processed then
+            if i.KeyCode == Enum.KeyCode.A then RealA = true elseif i.KeyCode == Enum.KeyCode.D then RealD = true end
+        end
+
+        if i.KeyCode == Enum.KeyCode.F1 then
+            En = not En
+            Status.Text = En and "[F1] SURF: ACTIVE" or "[F1] SURF: OFF"
+        elseif i.KeyCode == Enum.KeyCode.F2 then
+            SM = not SM
+            F.Visible = not SM
+        elseif i.KeyCode == Enum.KeyCode.F3 then
+            Term = true
+            G:Destroy()
+        end
+    end)
+
+    U.InputEnded:Connect(function(i)
+        if i.KeyCode == Enum.KeyCode.A then RealA = false elseif i.KeyCode == Enum.KeyCode.D then RealD = false end
+    end)
+
+    R.Heartbeat:Connect(function()
+        if not En or Term then return end
+        local d = U:GetMouseDelta().X * (Sens / 2)
+        if d > 0.1 then 
+            if not RealD then V:SendKeyEvent(true, "D", false, game) end
+            V:SendKeyEvent(false, "A", false, game)
+        elseif d < -0.1 then 
+            if not RealA then V:SendKeyEvent(true, "A", false, game) end
+            V:SendKeyEvent(false, "D", false, game)
+        else 
+            if not RealA then V:SendKeyEvent(false, "A", false, game) end
+            if not RealD then V:SendKeyEvent(false, "D", false, game) end
+        end
+    end)
+
+    -- // 5. UI INTERACTION \\
+    local drag, slide, start, pos = false, false, nil, nil
+    F.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 and i.Position.Y < F.AbsolutePosition.Y + 50 then drag = true; start = i.Position; pos = F.Position end end)
+    SB.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then slide = true end end)
+    U.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false; slide = false end end)
+    U.InputChanged:Connect(function(i)
+        if drag and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = i.Position - start
+            F.Position = UDim2.new(pos.X.Scale, pos.X.Offset + delta.X, pos.Y.Scale, pos.Y.Offset + delta.Y)
+        elseif slide and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local p = math.clamp((U:GetMouseLocation().X - SB.AbsolutePosition.X) / SB.AbsoluteSize.X, 0, 1)
+            SF.Size, Sens = UDim2.new(p, 0, 1, 0), math.floor(p * 100) / 10
+            ST.Text = "SENS: " .. Sens
+        end
+    end)
+]=])()
